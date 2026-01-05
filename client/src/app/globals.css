@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-text-primary font-mono;
+    line-height: 1.6;
+  }
+
+  /* Typography hierarchy - clean and readable */
+  h1 {
+    @apply text-2xl font-normal text-text-primary;
+    letter-spacing: -0.02em;
+  }
+
+  h2 {
+    @apply text-xl font-normal text-text-primary;
+  }
+
+  h3 {
+    @apply text-lg font-normal text-text-primary;
+  }
+
+  p {
+    @apply text-base text-text-primary;
+  }
+
+  a {
+    @apply text-accent hover:text-accent-muted transition-colors duration-150;
+    text-decoration: none;
+  }
+
+  /* No default button styles - intentional */
+  button {
+    @apply font-mono;
+  }
+}
+
+@layer components {
+  /* Card - minimal, authoritative */
+  .card {
+    @apply bg-background-card border border-border rounded-subtle;
+  }
+
+  /* Badge - system-issued credential style */
+  .badge {
+    @apply inline-block px-2 py-1 text-xs border border-border rounded-subtle;
+  }
+
+  /* Input - minimal, focused */
+  .input {
+    @apply w-full px-3 py-2 bg-background-card border border-border rounded-subtle;
+    @apply text-text-primary placeholder-text-tertiary;
+    @apply focus:outline-none focus:border-accent transition-colors;
+  }
+
+  /* Button - text-based, minimal */
+  .btn {
+    @apply px-4 py-2 border border-border rounded-subtle;
+    @apply text-text-primary hover:bg-background-hover transition-colors;
+    @apply disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn border-accent text-accent hover:bg-accent hover:text-background;
+  }
+
+  /* Metrics - non-gamified, text-based */
+  .metric {
+    @apply flex items-center gap-2 text-text-secondary text-sm;
+  }
+}
+
+@layer utilities {
+  /* Quiet transitions - no flashy animations */
+  .transition-quiet {
+    transition: all 150ms ease;
+  }
+
+  /* Reading-first spacing */
+  .reading-width {
+    max-width: 65ch;
+  }
+}
