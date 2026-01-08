@@ -18,8 +18,13 @@ declare global {
     }
 }
 
-// Helper: Decode JWT without verification (DEV MODE ONLY)
+// Helper: Decode JWT without verification (DEV MODE ONLY - NEVER IN PRODUCTION)
 function decodeUnverifiedToken(token: string) {
+    // SECURITY: This function should NEVER be used in production
+    if (process.env.NODE_ENV === 'production') {
+        console.error('CRITICAL: Insecure token decode attempted in production!');
+        return null;
+    }
     try {
         const parts = token.split('.');
         if (parts.length < 2) return null;
@@ -100,7 +105,7 @@ export async function authMiddleware(
                         .insert({
                             firebase_uid: 'dev_mode_uid',
                             username: 'dev_user',
-                            role: 'admin',
+                            role: 'user',  // SECURITY FIX: Never grant admin by default
                         })
                         .select()
                         .single();

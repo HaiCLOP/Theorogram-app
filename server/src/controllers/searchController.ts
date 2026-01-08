@@ -23,6 +23,9 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
 
         // Search theories using ilike for simple text matching
         if (type === 'all' || type === 'theories') {
+            // SECURITY FIX: Escape SQL pattern special characters
+            const escapedQ = q.replace(/[%_\\]/g, '\\$&');
+
             const { data: theories, error } = await supabase
                 .from('theories')
                 .select(`
@@ -33,8 +36,8 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
                     users!inner(username, level)
                 `)
                 .eq('moderation_status', 'safe')
-                .or(`title.ilike.%${q}%,body.ilike.%${q}%`)
-                .limit(Number(limit));
+                .or(`title.ilike.%${escapedQ}%,body.ilike.%${escapedQ}%`)
+                .limit(Math.min(Number(limit) || 20, 100));  // SECURITY FIX: Cap limit
 
             if (error) {
                 console.error('Theory search error:', error);
@@ -56,12 +59,15 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
 
         // Search users
         if (type === 'all' || type === 'users') {
+            // SECURITY FIX: Escape SQL pattern special characters
+            const escapedQ = q.replace(/[%_\\]/g, '\\$&');
+
             const { data: users, error } = await supabase
                 .from('users')
                 .select('id, username, level, reputation_score')
-                .ilike('username', `%${q}%`)
+                .ilike('username', `%${escapedQ}%`)
                 .eq('banned_status', false)
-                .limit(Number(limit));
+                .limit(Math.min(Number(limit) || 20, 100));  // SECURITY FIX: Cap limit
 
             if (error) {
                 console.error('User search error:', error);

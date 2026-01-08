@@ -1,14 +1,22 @@
 import { Router, Request, Response } from 'express';
 import { supabase } from '../config/supabase';
 import { firebaseAuth, isDevMode } from '../config/firebase';
+import rateLimit from 'express-rate-limit';
 
 const router = Router();
+
+// Strict rate limit for registration
+const registerLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 3,
+    message: { error: 'Too many registration attempts, please try again later' },
+});
 
 /**
  * POST /api/users/register
  * Register a new user after Firebase signup
  */
-router.post('/register', async (req: Request, res: Response): Promise<void> => {
+router.post('/register', registerLimiter, async (req: Request, res: Response): Promise<void> => {
     try {
         const { username } = req.body;
         const authHeader = req.headers.authorization;
@@ -91,7 +99,8 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
             .single();
 
         if (existingUser) {
-            res.status(400).json({ error: 'User already registered' });
+            // SECURITY: Use generic message to prevent enumeration
+            res.status(400).json({ error: 'Registration failed. Please try a different username.' });
             return;
         }
 
@@ -130,7 +139,7 @@ router.get('/:username', async (req: Request, res: Response): Promise<void> => {
         // Fetch user
         const { data: user, error: userError } = await supabase
             .from('users')
-            .select('id, username, level, reputation_score, created_at, banned_status')
+            .select('id, username, level, reputation_score, role, created_at, banned_status')
             .eq('username', username)
             .single();
 
@@ -228,14 +237,14 @@ router.get('/:username/theories', async (req: Request, res: Response): Promise<v
         const { username } = req.params;
         const { sort = 'recent', limit = 20, offset = 0 } = req.query;
 
-        // Get user ID
-        const { data: user } = await supabase
+        // Get user info for the theories
+        const { data: userData } = await supabase
             .from('users')
-            .select('id')
+            .select('id, username, level')
             .eq('username', username)
             .single();
 
-        if (!user) {
+        if (!userData) {
             res.status(404).json({ error: 'User not found' });
             return;
         }
@@ -243,34 +252,15 @@ router.get('/:username/theories', async (req: Request, res: Response): Promise<v
         let query = supabase
             .from('theories')
             .select(`
-        id,
-        title,
-        body,
-        created_at,
-        id,
-        title,
-        body,
-        created_at
-      `)
-            .eq('user_id', user.id)
+                id,
+                title,
+                body,
+                created_at
+            `)
+            .eq('user_id', userData.id)
             .eq('moderation_status', 'safe')
-            .range(Number(offset), Number(offset) + Number(limit) - 1);
-
-        // Apply sorting
-        if (sort === 'most_upvoted') {
-            query = query.order('upvotes', {
-                foreignTable: 'theory_stats',
-                ascending: false
-            });
-        } else if (sort === 'popular') {
-            query = query.order('interaction_score', {
-                foreignTable: 'theory_stats',
-                ascending: false
-            });
-        } else {
-            // recent
-            query = query.order('created_at', { ascending: false });
-        }
+            .order('created_at', { ascending: false })
+            .range(Number(offset), Number(offset) + Math.min(Number(limit) || 20, 100) - 1);
 
         const { data: theories, error } = await query;
 
@@ -280,7 +270,42 @@ router.get('/:username/theories', async (req: Request, res: Response): Promise<v
             return;
         }
 
-        res.json({ theories });
+        // Fetch actual stats from materialized view
+        const theoryIds = (theories || []).map(t => t.id);
+        let statsMap: Record<string, any> = {};
+
+        if (theoryIds.length > 0) {
+            const { data: stats } = await supabase
+                .from('theory_stats')
+                .select('*')
+                .in('theory_id', theoryIds);
+
+            if (stats) {
+                statsMap = stats.reduce((acc, s) => {
+                    acc[s.theory_id] = s;
+                    return acc;
+                }, {} as Record<string, any>);
+            }
+        }
+
+        // Add user info and actual stats to each theory
+        const theoriesWithUserData = (theories || []).map(theory => ({
+            ...theory,
+            users: {
+                username: userData.username,
+                level: userData.level || 1
+            },
+            theory_stats: statsMap[theory.id] || {
+                upvotes: 0,
+                downvotes: 0,
+                for_count: 0,
+                against_count: 0,
+                comment_count: 0,
+                interaction_score: 0
+            }
+        }));
+
+        res.json({ theories: theoriesWithUserData });
     } catch (error) {
         console.error('Get user theories error:', error);
         res.status(500).json({ error: 'Internal server error' });

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { getComments, createComment } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { sanitizeText } from '@/lib/sanitize';
 import ProfileBadge from './ProfileBadge';
 
 interface CommentSectionProps {
@@ -18,6 +19,7 @@ export default function CommentSection({ theoryId }: CommentSectionProps) {
     const [newComment, setNewComment] = useState('');
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         loadComments();
@@ -37,8 +39,14 @@ export default function CommentSection({ theoryId }: CommentSectionProps) {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError(null);
 
         if (!user || !newComment.trim() || submitting) return;
+
+        if (newComment.length < 10) {
+            setError('Comment must be at least 10 characters');
+            return;
+        }
 
         setSubmitting(true);
         try {
@@ -46,7 +54,7 @@ export default function CommentSection({ theoryId }: CommentSectionProps) {
             setComments(prev => [...prev, data.comment]);
             setNewComment('');
         } catch (error: any) {
-            alert(error.message || 'Failed to post comment');
+            setError(error.message || 'Failed to post comment');
         } finally {
             setSubmitting(false);
         }
@@ -58,7 +66,7 @@ export default function CommentSection({ theoryId }: CommentSectionProps) {
 
     return (
         <div className="space-y-6">
-            <h3 className="text-lg text-text-primary">COMMENTS</h3>
+            <h3 className="text-lg text-text-primary">COMMENTS ({comments.length})</h3>
 
             {/* Add comment form */}
             {user ? (
@@ -66,17 +74,26 @@ export default function CommentSection({ theoryId }: CommentSectionProps) {
                     <textarea
                         value={newComment}
                         onChange={(e) => setNewComment(e.target.value)}
-                        placeholder="Add a reasoned argument..."
+                        placeholder="Add a reasoned argument (min. 10 characters)..."
                         className="input min-h-[100px] resize-y"
                         disabled={submitting}
+                        maxLength={2000}
                     />
-                    <button
-                        type="submit"
-                        disabled={submitting || newComment.length < 10}
-                        className="btn-primary"
-                    >
-                        {submitting ? 'POSTING...' : 'POST COMMENT'}
-                    </button>
+                    {error && (
+                        <p className="text-sm text-red-400">{error}</p>
+                    )}
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs text-text-tertiary">
+                            {newComment.length}/2000 characters
+                        </span>
+                        <button
+                            type="submit"
+                            disabled={submitting || newComment.length < 10}
+                            className="btn-primary"
+                        >
+                            {submitting ? 'POSTING...' : 'POST COMMENT'}
+                        </button>
+                    </div>
                 </form>
             ) : (
                 <p className="text-sm text-text-tertiary">Sign in to comment</p>
@@ -85,7 +102,7 @@ export default function CommentSection({ theoryId }: CommentSectionProps) {
             {/* Comments list */}
             <div className="space-y-4">
                 {comments.length === 0 ? (
-                    <p className="text-sm text-text-tertiary">No comments yet</p>
+                    <p className="text-sm text-text-tertiary">No comments yet. Be the first to contribute.</p>
                 ) : (
                     comments.map((comment) => (
                         <div key={comment.id} className="border-l-2 border-border pl-4 py-2 space-y-2">
@@ -99,12 +116,14 @@ export default function CommentSection({ theoryId }: CommentSectionProps) {
                                     {new Date(comment.created_at).toLocaleDateString()}
                                 </time>
                             </div>
+                            {/* SECURITY: Sanitize comment body */}
                             <p className="text-sm text-text-primary reading-width">
-                                {comment.body}
+                                {sanitizeText(comment.body)}
                             </p>
                         </div>
                     ))
                 )}
+
             </div>
         </div>
     );

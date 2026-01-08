@@ -3,6 +3,7 @@ import { authMiddleware } from '../middleware/auth';
 import { supabase } from '../config/supabase';
 import { classifyContent, calculateComplexityScore } from '../services/moderation';
 import { updateReputation, REP_ACTIONS } from '../utils/levelSystem';
+import { cache, CACHE_KEYS } from '../utils/cache';
 
 const router = Router();
 
@@ -138,7 +139,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
             offset = 0
         } = req.query;
 
-        // Fetch theories with user data only (no stats join - materialized view issue)
+        // Fetch theories with user data
         let query = supabase
             .from('theories')
             .select(`
@@ -146,6 +147,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
                 title,
                 body,
                 created_at,
+                is_mature,
                 users!inner(username, level)
             `)
             .eq('moderation_status', 'safe')
@@ -164,10 +166,28 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
             return;
         }
 
-        // Add default stats for now (stats will be fetched separately or added later)
+        // Fetch actual stats from materialized view
+        const theoryIds = (theories || []).map(t => t.id);
+        let statsMap: Record<string, any> = {};
+
+        if (theoryIds.length > 0) {
+            const { data: stats } = await supabase
+                .from('theory_stats')
+                .select('*')
+                .in('theory_id', theoryIds);
+
+            if (stats) {
+                statsMap = stats.reduce((acc, s) => {
+                    acc[s.theory_id] = s;
+                    return acc;
+                }, {} as Record<string, any>);
+            }
+        }
+
+        // Combine theories with their actual stats
         const theoriesWithStats = (theories || []).map(theory => ({
             ...theory,
-            theory_stats: {
+            theory_stats: statsMap[theory.id] || {
                 upvotes: 0,
                 downvotes: 0,
                 for_count: 0,
@@ -196,6 +216,7 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
             .from('theories')
             .select(`
                 *,
+                is_mature,
                 users!inner(id, username, level)
             `)
             .eq('id', id)
@@ -208,10 +229,17 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
             return;
         }
 
-        // Add default stats
+        // Fetch actual stats from materialized view
+        const { data: stats } = await supabase
+            .from('theory_stats')
+            .select('*')
+            .eq('theory_id', id)
+            .single();
+
+        // Combine theory with actual stats
         const theoryWithStats = {
             ...theory,
-            theory_stats: {
+            theory_stats: stats || {
                 upvotes: 0,
                 downvotes: 0,
                 for_count: 0,

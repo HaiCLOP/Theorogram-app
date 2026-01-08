@@ -1,19 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getTheories } from '@/lib/api';
 import TheoryCard from '@/components/TheoryCard';
+import { TheoryCardSkeleton } from '@/components/LoadingSkeletons';
 
 export default function HomePage() {
     const [theories, setTheories] = useState<any[]>([]);
     const [sort, setSort] = useState<'latest' | 'popular'>('latest');
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        loadTheories();
-    }, [sort]);
-
-    const loadTheories = async () => {
+    // Memoize load function to prevent unnecessary re-renders
+    const loadTheories = useCallback(async () => {
         setLoading(true);
         try {
             const data = await getTheories({ sort, limit: 20 });
@@ -23,7 +21,11 @@ export default function HomePage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [sort]);
+
+    useEffect(() => {
+        loadTheories();
+    }, [loadTheories]);
 
     return (
         <div className="space-y-8">
@@ -51,10 +53,15 @@ export default function HomePage() {
                 </button>
             </div>
 
-            {/* Feed */}
+            {/* Feed with loading skeletons */}
             <div className="space-y-6">
                 {loading ? (
-                    <p className="text-text-tertiary">Loading theories...</p>
+                    // Show 3 skeleton cards while loading
+                    <>
+                        <TheoryCardSkeleton />
+                        <TheoryCardSkeleton />
+                        <TheoryCardSkeleton />
+                    </>
                 ) : theories.length === 0 ? (
                     <p className="text-text-tertiary">No theories yet. Be the first to publish.</p>
                 ) : (

@@ -20,6 +20,13 @@ router.post('/', authMiddleware, async (req: Request, res: Response): Promise<vo
             return;
         }
 
+        // SECURITY FIX: Validate UUID format
+        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!UUID_REGEX.test(theory_id)) {
+            res.status(400).json({ error: 'Invalid theory ID format' });
+            return;
+        }
+
         if (body.length < 10) {
             res.status(400).json({ error: 'Comment must be at least 10 characters' });
             return;

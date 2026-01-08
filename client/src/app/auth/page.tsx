@@ -48,8 +48,8 @@ export default function AuthPage() {
                 <div className="flex gap-4 border-b border-border mb-6">
                     <button
                         className={`pb-2 text-sm font-mono transition-colors ${mode === 'signin'
-                                ? 'text-accent border-b-2 border-accent'
-                                : 'text-text-secondary hover:text-text-primary'
+                            ? 'text-accent border-b-2 border-accent'
+                            : 'text-text-secondary hover:text-text-primary'
                             }`}
                         onClick={() => setMode('signin')}
                     >
@@ -57,8 +57,8 @@ export default function AuthPage() {
                     </button>
                     <button
                         className={`pb-2 text-sm font-mono transition-colors ${mode === 'signup'
-                                ? 'text-accent border-b-2 border-accent'
-                                : 'text-text-secondary hover:text-text-primary'
+                            ? 'text-accent border-b-2 border-accent'
+                            : 'text-text-secondary hover:text-text-primary'
                             }`}
                         onClick={() => setMode('signup')}
                     >
@@ -97,8 +97,23 @@ export default function AuthPage() {
                             onChange={(e) => setPassword(e.target.value)}
                             className="input w-full"
                             required
-                            minLength={6}
+                            minLength={8}
                         />
+                        {mode === 'signup' && (
+                            <div className="text-xs text-text-tertiary">
+                                <span className={password.length >= 8 ? 'text-green-500' : ''}>
+                                    • Min 8 characters
+                                </span>
+                                {' '}
+                                <span className={/[A-Z]/.test(password) ? 'text-green-500' : ''}>
+                                    • 1 uppercase
+                                </span>
+                                {' '}
+                                <span className={/[0-9]/.test(password) ? 'text-green-500' : ''}>
+                                    • 1 number
+                                </span>
+                            </div>
+                        )}
                     </div>
 
                     {mode === 'signup' && (

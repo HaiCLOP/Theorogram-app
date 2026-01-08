@@ -12,8 +12,17 @@ import {
 import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 
+interface DbUser {
+    id: string;
+    username: string;
+    role: 'user' | 'admin';
+    level: number;
+    reputation_score: number;
+}
+
 interface AuthContextType {
     user: User | null;
+    dbUser: DbUser | null;
     loading: boolean;
     signIn: (email: string, password: string) => Promise<void>;
     signUp: (email: string, password: string, username: string) => Promise<void>;
@@ -25,24 +34,33 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
+    const [dbUser, setDbUser] = useState<DbUser | null>(null);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             setUser(user);
-            setLoading(false);
 
             if (user) {
-                // Ensure user exists in backend
+                // Fetch user profile with role from backend
                 try {
                     const token = await user.getIdToken();
-                    // We can trigger a profile fetch to ensure syncing happens
-                    // fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
+                    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/${user.displayName || 'me'}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        setDbUser(data.user);
+                    }
                 } catch (e) {
-                    console.error('Error syncing user:', e);
+                    console.error('Error fetching user profile:', e);
                 }
+            } else {
+                setDbUser(null);
             }
+
+            setLoading(false);
         });
 
         return () => unsubscribe();
@@ -56,12 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(userCredential.user, { displayName: username });
 
-        // We need to pass the username to the backend to create the user record
-        // The backend middleware will likely create the user, but it needs the username.
-        // Since verifyIdToken only gives us UID/email, we might need a specific "register" endpoint 
-        // or pass username in a header during the first call.
-
-        // For simplicity, let's assume we call a registration endpoint immediately
+        // Register user in backend
         const token = await userCredential.user.getIdToken();
 
         await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/register`, {
@@ -76,6 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const signOut = async () => {
         await firebaseSignOut(auth);
+        setDbUser(null);
         router.push('/');
     };
 
@@ -85,7 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, getToken }}>
+        <AuthContext.Provider value={{ user, dbUser, loading, signIn, signUp, signOut, getToken }}>
             {children}
         </AuthContext.Provider>
     );
@@ -98,3 +112,4 @@ export function useAuth() {
     }
     return context;
 }
+

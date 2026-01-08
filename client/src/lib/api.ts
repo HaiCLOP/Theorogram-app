@@ -74,6 +74,12 @@ export async function getUserVote(theoryId: string) {
     return apiFetch(`/api/votes/user/${theoryId}`);
 }
 
+export async function removeVote(theoryId: string) {
+    return apiFetch(`/api/votes/${theoryId}`, {
+        method: 'DELETE',
+    });
+}
+
 // ============================================
 // STANCES
 // ============================================
@@ -170,3 +176,40 @@ export async function getAuditLogs(params?: { limit?: number; offset?: number })
     const query = new URLSearchParams(params as any).toString();
     return apiFetch(`/api/admin/audit-logs?${query}`);
 }
+
+export async function flagTheoryMature(id: string, reason?: string) {
+    return apiFetch(`/api/admin/theories/${id}/flag-mature`, {
+        method: 'POST',
+        body: JSON.stringify({ reason }),
+    });
+}
+
+export async function unflagTheoryMature(id: string) {
+    return apiFetch(`/api/admin/theories/${id}/unflag-mature`, {
+        method: 'POST',
+    });
+}
+
+// ============================================
+// USER PREFERENCES  
+// ============================================
+
+// Store hidden theories in localStorage for now (could be moved to backend)
+export function getHiddenTheories(): string[] {
+    if (typeof window === 'undefined') return [];
+    const hidden = localStorage.getItem('hidden_theories');
+    return hidden ? JSON.parse(hidden) : [];
+}
+
+export function hideTheory(theoryId: string): void {
+    const hidden = getHiddenTheories();
+    if (!hidden.includes(theoryId)) {
+        hidden.push(theoryId);
+        localStorage.setItem('hidden_theories', JSON.stringify(hidden));
+    }
+}
+
+export function isTheoryHidden(theoryId: string): boolean {
+    return getHiddenTheories().includes(theoryId);
+}
+

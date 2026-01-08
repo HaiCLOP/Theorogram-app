@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function Header() {
-    const { user, loading, signOut } = useAuth();
+    const { user, dbUser, loading, signOut } = useAuth();
 
     return (
         <header className="border-b border-border bg-background">
@@ -25,6 +25,12 @@ export default function Header() {
                         <span className="text-text-tertiary">...</span>
                     ) : user ? (
                         <div className="flex items-center gap-4">
+                            {/* Admin Link - Only shown to admins */}
+                            {dbUser?.role === 'admin' && (
+                                <Link href="/admin" className="text-red-400 hover:text-red-300 transition-quiet font-mono">
+                                    🛡️ ADMIN
+                                </Link>
+                            )}
                             <Link href={`/profile/${user.displayName || user.email?.split('@')[0] || 'USER'}`} className="hover:text-accent transition-quiet">
                                 <span className="text-text-secondary font-mono">
                                     {user.displayName || user.email?.split('@')[0] || 'USER'}
@@ -47,3 +53,4 @@ export default function Header() {
         </header>
     );
 }
+

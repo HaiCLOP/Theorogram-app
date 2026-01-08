@@ -19,21 +19,34 @@ router.post('/', authMiddleware, async (req: Request, res: Response): Promise<vo
             return;
         }
 
+        // SECURITY FIX: Validate UUID format
+        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!UUID_REGEX.test(theory_id)) {
+            res.status(400).json({ error: 'Invalid theory ID format' });
+            return;
+        }
+
         if (!['upvote', 'downvote'].includes(vote_type)) {
             res.status(400).json({ error: 'vote_type must be "upvote" or "downvote"' });
             return;
         }
 
-        // Check if theory exists
+        // Check if theory exists and get author
         const { data: theory } = await supabase
             .from('theories')
-            .select('id')
+            .select('id, user_id')
             .eq('id', theory_id)
             .eq('moderation_status', 'safe')
             .single();
 
         if (!theory) {
             res.status(404).json({ error: 'Theory not found' });
+            return;
+        }
+
+        // SECURITY FIX: Prevent self-voting
+        if (theory.user_id === userId) {
+            res.status(400).json({ error: 'Cannot vote on your own theory' });
             return;
         }
 
@@ -83,6 +96,45 @@ router.get('/user/:theoryId', authMiddleware, async (req: Request, res: Response
         res.json({ vote: vote?.vote_type || null });
     } catch (error) {
         console.error('Get user vote error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * DELETE /api/votes/:theoryId
+ * Remove user's vote from a theory
+ */
+router.delete('/:theoryId', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { theoryId } = req.params;
+        const userId = req.user!.id;
+
+        // Validate UUID format
+        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!UUID_REGEX.test(theoryId)) {
+            res.status(400).json({ error: 'Invalid theory ID format' });
+            return;
+        }
+
+        // Delete the vote
+        const { error: deleteError } = await supabase
+            .from('votes')
+            .delete()
+            .eq('user_id', userId)
+            .eq('theory_id', theoryId);
+
+        if (deleteError) {
+            console.error('Delete vote error:', deleteError);
+            res.status(500).json({ error: 'Failed to remove vote' });
+            return;
+        }
+
+        // Refresh materialized view
+        await supabase.rpc('refresh_theory_stats');
+
+        res.json({ message: 'Vote removed successfully' });
+    } catch (error) {
+        console.error('Delete vote error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

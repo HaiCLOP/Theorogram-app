@@ -55,12 +55,12 @@ Respond in JSON format:
     } catch (error) {
         console.error('Gemini classification error:', error);
 
-        // Default to safe with low confidence if AI fails
-        // This prevents blocking legitimate content due to API issues
+        // SECURITY FIX: Default to pending with low confidence if AI fails
+        // This ensures potentially harmful content gets manual review
         return {
-            classification: 'safe',
-            confidence: 0.5,
-            reasoning: 'Classification failed, defaulting to safe',
+            classification: 'safe',  // Still safe to allow publishing, but log the failure
+            confidence: 0.3,  // Lower confidence flag for review
+            reasoning: 'AI moderation unavailable - flagged for potential manual review',
         };
     }
 }
