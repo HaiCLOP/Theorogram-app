@@ -6,12 +6,13 @@ dist/
 .next/
 out/
 
-# Environment variables (ALWAYS ignore these)
-.env
-.env.local
-.env.development
-.env.production
-.env*.local
+# Environment variables (COMMENTED OUT FOR TEAM SHARING - SECURITY RISK!)
+# WARNING: Committing .env files exposes API keys publicly!
+# .env
+# .env.local
+# .env.development
+# .env.production
+# .env*.local
 
 # Firebase credentials (NEVER commit)
 **/service-account.json
